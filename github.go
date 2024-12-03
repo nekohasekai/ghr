@@ -8,8 +8,10 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"time"
+	"unsafe"
 
 	"github.com/Songmu/retry"
 	"github.com/google/go-github/v66/github"
@@ -258,7 +260,12 @@ func (c *GitHubClient) UploadAsset(ctx context.Context, releaseID int64, filenam
 		}
 		defer f.Close()
 
-		asset, res, err = c.Repositories.UploadReleaseAsset(context.TODO(), c.Owner, c.Repo, releaseID, opts, f)
+		clientCopy := *c.Client
+		newClient := &clientCopy
+		rawClient := (**http.Client)(unsafe.Pointer(reflect.Indirect(reflect.ValueOf(newClient)).FieldByName("client").UnsafeAddr()))
+		*rawClient = &http.Client{}
+		defer (*rawClient).CloseIdleConnections()
+		asset, res, err = newClient.Repositories.UploadReleaseAsset(context.TODO(), c.Owner, c.Repo, releaseID, opts, f)
 		if err != nil {
 			return fmt.Errorf("failed to upload release asset: %s %w", filename, err)
 		}
